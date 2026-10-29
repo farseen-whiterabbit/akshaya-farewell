@@ -109,7 +109,7 @@ button:focus-visible { outline: 3px dashed var(--mint); outline-offset: 4px; }
       <canvas id="posterArt" width="340" height="196" aria-hidden="true"></canvas>
       <p class="tag">Same college. Same office. Same company. Then she said hi… and bye. 👋🏃‍♀️💨</p>
       <button id="startBtn">▶ PRESS START</button>
-      <p class="hint">3 chapters · 3 mini games · tap or press Space</p>
+      <p class="hint">Press Space or tap to start · 3 chapters · 3 mini games</p>
     </section>
 
     <!-- STORY PLAYER -->
@@ -289,12 +289,12 @@ button:focus-visible { outline: 3px dashed var(--mint); outline-offset: 4px; }
     R = { books:0, oops:0, caught:0, wrong:0, dodged:0, ate:0, hugs:0 };
     si = -1; scene = 0; T = 0; D.who = '';
     P.ak.vis = P.fa.vis = false;
-    state = 'play'; show('game'); next();
+    state = 'play'; show('game'); if (document.activeElement) document.activeElement.blur(); next();
     last = performance.now(); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
   }
 
   function finish() {
-    cancelAnimationFrame(raf); state = 'end';
+    cancelAnimationFrame(raf); state = 'end'; endT = performance.now();
     $('sBooks').textContent = R.books;
     $('sCaught').textContent = R.caught;
     $('sDodged').textContent = R.dodged;
@@ -489,7 +489,7 @@ button:focus-visible { outline: 3px dashed var(--mint); outline-offset: 4px; }
         const d = s.x - s.x0;
         s.y = d < s.arc ? GROUND - 24 - Math.sin(d / s.arc * Math.PI) * 90 - (1 - d / s.arc) * 30
                         : GROUND - 24 - (s.bounce ? Math.abs(Math.sin((d - s.arc) * .03)) * 36 : 0);
-        if (!s.hit && !s.passed && Math.abs(s.x - (AKX + 15)) < 26 && g.y > s.y - 26 && g.y - 60 < s.y + 20) {
+        if (!s.hit && !s.passed && s.x - s.x0 >= s.arc && Math.abs(s.x - (AKX + 15)) < 24 && g.y > s.y - 16) {
           s.hit = true; g.ate++; g.gap -= 60; shake = .3; beep(150, .14);
           g.floats.push({ text:'NOM 😋', x:AKX + 15, y:GROUND - 120, t:T, col:C.cream });
           setDlg('ak', EAT[s.e], true); g.backT = T + 1.8;
@@ -832,7 +832,11 @@ button:focus-visible { outline: 3px dashed var(--mint); outline-offset: 4px; }
     else if (phase === 'letter') { if (D.typing) D.n = D.chars.length; else if (T - phaseT > 1.4) next(); }
   }
   $('game').addEventListener('pointerdown', e => { e.preventDefault(); press(e); });
+  let endT = 0;
   window.addEventListener('keydown', e => {
+    if (!['Space','Enter','ArrowUp','KeyW'].includes(e.code)) return;
+    if (state === 'title') { e.preventDefault(); if (!e.repeat) { beep(440); start(); } return; }
+    if (state === 'end') { e.preventDefault(); if (!e.repeat && performance.now() - endT > 2500) { state = 'title'; show('title'); } return; }
     if (state !== 'play') return;
     if (['Space','Enter','ArrowUp','KeyW'].includes(e.code)) { e.preventDefault(); if (!e.repeat) press(null); }
   });
