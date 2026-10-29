@@ -143,7 +143,7 @@ button:focus-visible { outline: 3px dashed var(--mint); outline-offset: 4px; }
         <div class="stats">
           <span>Books collected <b id="sBooks">0</b></span>
           <span>Farseen caught <b id="sCaught">0</b></span>
-          <span>Resignation time <b id="sResign">0s</b></span>
+          <span>Bribes dodged <b id="sDodged">0</b></span>
           <span>Oops moments <b id="sOops">0</b></span>
         </div>
       </div>
@@ -215,17 +215,19 @@ button:focus-visible { outline: 3px dashed var(--mint); outline-offset: 4px; }
     { t:'say', w:'fa', x:'HELLO AGAIN 👋😁', pose:{ fa:500 }, from:{ fa:'R' } },
     { t:'say', w:'ak', x:'HI FARSEEN 👋 … not again!' },
     { t:'say', w:'fa', x:'So… who is following whom now? 😏' },
-    { t:'say', w:'nar', x:'A few days later, Akshaya makes a decision. 📝' },
-    { t:'game', g:'mash' },
-    { t:'say', w:'ak', x:'BYE FARSEEN 👋', pose:{ ak:560, fa:330 }, snap:['ak','fa'] },
-    { t:'say', w:'fa', x:'WAIT! I just got used to you! 😭' },
-    { t:'say', w:'nar', x:() => `Resigned in ${R.resign.toFixed(1)} seconds. The fastest White Rabbit exit ever recorded. 🏆`, pose:{ ak:'exit', fa:470 }, fast:true }
+    { t:'say', w:'nar', x:'A few days later… 📝 RESIGNATION SUBMITTED!' },
+    { t:'say', w:'ak', x:'BYE FARSEEN 👋' },
+    { t:'say', w:'fa', x:'WAIT! I just got used to you! 😭 Come back!' },
+    { t:'say', w:'nar', x:'Run, Akshaya, run! Farseen will try to bribe you into staying. 🏃‍♀️' },
+    { t:'game', g:'escape' },
+    { t:'say', w:'nar', x:'Escaped! The fastest White Rabbit exit ever recorded. 🏆', pose:{ ak:'off', fa:560 }, snap:['fa'] },
+    { t:'say', w:'fa', x:'…so who is going to follow whom now? 😭' }
   ];
 
   const GAMES = {
     runner: { title:'SURVIVE THE SEMESTER', help:'🎮 Tap or press Space to jump. Tap again in the air to double jump. Dodge the exams and grab the 📚!' },
     whack:  { title:'SPOT FARSEEN', help:"🎮 Farseen keeps popping up everywhere. Tap her! Don't tap Akshaya or the client call 📞." },
-    mash:   { title:'RESIGN FAST!', help:'🎮 MASH! Tap the screen or hit Space as fast as you can to finish the resignation letter!' }
+    escape: { title:'ESCAPE FROM FARSEEN', help:'🎮 Run to the EXIT! Farseen is throwing bribes from behind. Tap / Space to jump over them!' }
   };
 
   // ---------- state ----------
@@ -293,7 +295,7 @@ button:focus-visible { outline: 3px dashed var(--mint); outline-offset: 4px; }
   }
 
   function start() {
-    R = { books:0, oops:0, caught:0, wrong:0, resign:0 };
+    R = { books:0, oops:0, caught:0, wrong:0, dodged:0, ate:0, hugs:0 };
     si = -1; scene = 0; T = 0; D.who = '';
     P.ak.vis = P.fa.vis = false;
     state = 'play'; show('game'); next();
@@ -304,8 +306,8 @@ button:focus-visible { outline: 3px dashed var(--mint); outline-offset: 4px; }
     cancelAnimationFrame(raf); state = 'end';
     $('sBooks').textContent = R.books;
     $('sCaught').textContent = R.caught;
-    $('sResign').textContent = R.resign.toFixed(1) + 's';
-    $('sOops').textContent = R.oops + R.wrong;
+    $('sDodged').textContent = R.dodged;
+    $('sOops').textContent = R.oops + R.wrong + R.ate;
     show('end'); window.scrollTo(0, 0); $('againBtn').focus({ preventScroll: true });
   }
 
@@ -319,7 +321,7 @@ button:focus-visible { outline: 3px dashed var(--mint); outline-offset: 4px; }
   const INIT = {
     runner: () => ({ t:0, dur:17, x:0, y:GROUND, vy:0, jumps:0, obs:[], items:[], nextObs:520, nextItem:260, books:0, oops:0, hurtT:-9, floats:[], backT:0 }),
     whack:  () => ({ t:0, dur:16, pops:[], nextPop:.4, caught:0, wrong:0, floats:[], backT:0 }),
-    mash:   () => ({ t:0, meter:0, fx:40, taps:0, line:-1, floats:[], wob:0 })
+    escape: () => ({ t:0, dur:18, x:0, y:GROUND, vy:0, jumps:0, gap:170, shots:[], nextShot:1, dodged:0, ate:0, hugs:0, hurtT:-9, freeze:0, floats:[], backT:0, exitT:0 })
   };
 
   function runnerJump() {
@@ -463,46 +465,122 @@ button:focus-visible { outline: 3px dashed var(--mint); outline-offset: 4px; }
     hud(`CAUGHT ${g.caught}`, `WRONG ${g.wrong}`, 1 - g.t / g.dur);
   }
 
-  // ---------- mini game 3: resign fast ----------
-  const PLEAS = [[0,'Wait wait wait! 😱'],[2.2,"Let's talk about this!"],[4.4,"I'll buy you chai! ☕"],[6.6,'I will share my snacks! 🍪'],[8.8,'Pleaseee don\'t go 😭']];
-  function mashTap() {
-    const g = G; if (g.meter >= 100) return;
-    g.meter = Math.min(100, g.meter + 6); g.taps++; g.wob = .12;
-    beep(300 + g.meter * 8, .04);
-    if (g.meter >= 100) {
-      R.resign = g.t;
-      endGame('RESIGNATION SUBMITTED! 📝', [`Time: ${g.t.toFixed(1)}s`, `Taps: ${g.taps}`],
-        g.t < 5 ? `Resigned in ${g.t.toFixed(1)}s. Absolutely no hesitation! ⚡` : `Resigned in ${g.t.toFixed(1)}s. Farseen almost talked her out of it! 😅`);
+  // ---------- mini game 3: escape from Farseen ----------
+  const AKX = 580;
+  const BRIBES = ['☕','🍕','🍪','🎂','💰','🏖️'];
+  const BCOL = { '☕':['#ff9f43','CHAI'], '🍕':['#ff5a5a','PIZZA'], '🍪':['#c08a4a','COOKIES'], '🎂':['#ff6fd8','CAKE'], '💰':['#3dd68c','HIKE'], '🏖️':['#4fc3ff','LEAVE'] };
+  const THROW = { '☕':'Have some chai! ☕', '🍕':'Pizza party tomorrow! 🍕', '🍪':'Cookies for you! 🍪', '🎂':'There is cake! 🎂', '💰':'They will give you a hike! 💰', '🏖️':'Take extra leave instead! 🏖️' };
+  const EAT = { '☕':'Ooh chai… NO! Focus! 😤', '🍕':'Pizza?! …must… resist… 😩', '🍪':"Cookies won't stop me! 🍪", '🎂':'The cake was a trap! 🎂', '💰':'A hike?! …nope, still leaving 💅', '🏖️':'Extra leave?… still NO! 🏃‍♀️' };
+  function escapeJump() {
+    const g = G; if (g.exitT || T < g.freeze) return;
+    if (g.y >= GROUND - .5) { g.vy = -800; g.jumps = 1; beep(520); }
+    else if (g.jumps < 2) { g.vy = -680; g.jumps = 2; beep(700); }
+  }
+  function escFx(g) { return AKX - 60 - g.gap; }
+  function escapeUpdate(dt) {
+    const g = G; g.t += dt;
+    g.vy += 2300 * dt; g.y += g.vy * dt;
+    if (g.y > GROUND) { g.y = GROUND; g.vy = 0; g.jumps = 0; }
+    if (!g.exitT) {
+      const frozen = T < g.freeze;
+      if (!frozen) { g.x += 330 * dt; g.gap = Math.min(220, g.gap + 6 * dt); }
+      if (g.unfreezeLine && !frozen) { g.unfreezeLine = false; setDlg('ak', 'Nice try! 🏃‍♀️💨', true); g.backT = T + 1.6; }
+      const fx = escFx(g);
+      if (!frozen && g.t > g.nextShot && g.t < g.dur - 1.6) {
+        const e = BRIBES[Math.floor(Math.random() * BRIBES.length)];
+        g.shots.push({ x:fx + 30, x0:fx + 30, arc:Math.min(130, Math.max(40, (AKX - fx) * .45)), e, bounce: Math.random() < .3, hit:false, passed:false });
+        setDlg('fa', THROW[e], true); g.backT = T + 1.4;
+        g.nextShot = g.t + 1.25 + Math.random() * .7;
+        beep(330, .05);
+      }
+      for (const s of g.shots) {
+        s.x += (frozen ? 0 : 250) * dt;
+        const d = s.x - s.x0;
+        s.y = d < s.arc ? GROUND - 24 - Math.sin(d / s.arc * Math.PI) * 90 - (1 - d / s.arc) * 30
+                        : GROUND - 24 - (s.bounce ? Math.abs(Math.sin((d - s.arc) * .03)) * 36 : 0);
+        if (!s.hit && !s.passed && Math.abs(s.x - (AKX + 15)) < 26 && g.y > s.y - 26 && g.y - 60 < s.y + 20) {
+          s.hit = true; g.ate++; g.gap -= 60; shake = .3; beep(150, .14);
+          g.floats.push({ text:'NOM 😋', x:AKX + 15, y:GROUND - 120, t:T, col:C.cream });
+          setDlg('ak', EAT[s.e], true); g.backT = T + 1.8;
+        }
+        if (!s.hit && !s.passed && s.x > AKX + 44) { s.passed = true; g.dodged++; g.floats.push({ text:'DODGED!', x:AKX + 60, y:GROUND - 110, t:T, col:C.mint }); }
+      }
+      g.shots = g.shots.filter(s => s.x < W + 60 && !(s.hit && s.x > AKX + 60));
+      if (g.gap <= 0) {
+        g.hugs++; g.gap = 140; g.freeze = T + 1.1; g.unfreezeLine = true; shake = .3;
+        g.floats.push({ text:'🤗 HUG ATTACK!', x:AKX - 20, y:GROUND - 150, t:T, col:C.rose });
+        setDlg('fa', 'GOTCHA! 🤗 You are not going anywhere!', true); g.backT = 0;
+        beep(500, .1); setTimeout(() => beep(400, .15), 110);
+      }
+      if (g.backT && T > g.backT) { g.backT = 0; setDlg('game', GAMES.escape.help, true); }
+      if (g.t >= g.dur) {
+        g.exitT = T; g.fx0 = escFx(g); g.shots = [];
+        setDlg('ak', 'BYE FARSEEN 👋💨', true);
+      }
+    } else {
+      const e = T - g.exitT;
+      if (e > 1.25 && !g.slam) { g.slam = true; beep(110, .2); }
+      if (e > 1.95 && !g.bonk) {
+        g.bonk = true; shake = .35; beep(90, .25);
+        g.floats.push({ text:'BONK! 😵', x:660, y:GROUND - 170, t:T, col:C.butter });
+        setDlg('fa', "Ouch! 😵 …she's gone.", true);
+      }
+      if (e > 3.6) {
+        R.dodged = g.dodged; R.ate = g.ate; R.hugs = g.hugs;
+        endGame('ESCAPED! 🏃‍♀️💨', [`Bribes dodged: ${g.dodged}`, `Bribes eaten: ${g.ate}`],
+          g.ate === 0 ? 'Not a single bribe worked. Iconic. 💅' : `Ate ${g.ate} bribe${g.ate > 1 ? 's' : ''} and STILL escaped! 😂`);
+      }
     }
   }
-  function mashUpdate(dt) {
-    const g = G; g.t += dt; g.wob = Math.max(0, g.wob - dt);
-    g.meter = Math.max(0, g.meter - (g.t < 12 ? 11 : 0) * dt);
-    g.fx = Math.min(440, g.fx + 34 * dt);
-    let li = 0; for (let i = 0; i < PLEAS.length; i++) if (g.t >= PLEAS[i][0]) li = i;
-    if (li !== g.line) { g.line = li; setDlg('fa', PLEAS[li][1], true); }
-  }
-  function mashDraw() {
+  function escapeDraw() {
     const g = G;
-    drawBG(2, 0);
-    door();
-    drawPerson(ctx, 'fa', g.fx - 20, GROUND, 4, T, g.fx < 440);
-    const a = drawPerson(ctx, 'ak', 540, GROUND, 4, T, false);
-    const wob = g.wob > 0 ? (Math.random() - .5) * 8 : 0;
-    ctx.font = '40px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('📝', a.cx + 50 + wob, a.headTop + 10);
-    // meter
-    rect(200, 46, 400, 40, C.ink); rect(204, 50, 392 * g.meter / 100, 32, g.meter > 80 ? C.mint : C.butter);
-    outlined(`RESIGNATION ${Math.floor(g.meter)}%`, 400, 67, '20px Silkscreen, monospace', C.cream);
-    const pulse = 1 + Math.sin(T * 14) * .06;
-    ctx.save(); ctx.translate(400, 124); ctx.scale(pulse, pulse);
-    outlined('TAP TAP TAP!', 0, 0, '34px Silkscreen, monospace', C.butter);
-    ctx.restore();
+    drawBG(2, g.x);
+    let ax = AKX, aAlpha = 1, fx = escFx(g), fRun = T >= g.freeze, doorX = null, closed = false, fStars = false;
+    if (g.exitT) {
+      const e = T - g.exitT;
+      doorX = Math.max(690, 880 - e * 380);
+      if (e > .5) ax = AKX + Math.min(1, (e - .5) / .7) * (790 - AKX);
+      if (ax > 700) aAlpha = Math.max(0, 1 - (ax - 700) / 50);
+      closed = e > 1.25;
+      fx = g.fx0 + Math.min(1, Math.max(0, (e - 1.25) / .7)) * (650 - g.fx0);
+      fRun = e < 1.95;
+      fStars = e > 1.95;
+    }
+    if (doorX !== null) door(doorX, closed);
+    for (const s of g.shots) if (!s.hit) {
+      const [col, label] = BCOL[s.e], y = s.y;
+      // motion trail
+      for (let k = 1; k <= 3; k++) { ctx.globalAlpha = .22 / k; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(s.x - k * 16, y, 22 - k * 3, 0, Math.PI * 2); ctx.fill(); }
+      ctx.globalAlpha = 1;
+      // glow + badge
+      ctx.fillStyle = col; ctx.globalAlpha = .35; ctx.beginPath(); ctx.arc(s.x, y, 30 + Math.sin(T * 12) * 2, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = C.cream; ctx.beginPath(); ctx.arc(s.x, y, 24, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(s.x, y, 21, 0, Math.PI * 2); ctx.fill();
+      ctx.font = '26px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.save(); ctx.translate(s.x, y); ctx.rotate(Math.sin(T * 10 + s.x) * .35); ctx.fillText(s.e, 0, 2); ctx.restore();
+      // label tag above
+      ctx.font = '13px Silkscreen, monospace';
+      const lw = ctx.measureText(label).width + 12;
+      rect(s.x - lw / 2, y - 48, lw, 18, col);
+      ctx.fillStyle = C.ink; ctx.fillText(label, s.x, y - 39);
+    }
     ctx.textAlign = 'left';
+    const f = drawPerson(ctx, 'fa', fx - 15, GROUND, 3, T + .07, fRun);
+    if (fStars) stars(f);
+    if (!g.exitT && g.gap < 70 && Math.floor(T * 6) % 2) outlined('!!', f.cx + 34, f.headTop - 4, '26px Silkscreen, monospace', C.red);
+    const hurt = T - g.hurtT < .6;
+    if (aAlpha > 0) drawPerson(ctx, 'ak', ax, g.y, 3, T, g.y >= GROUND - .5 && T >= g.freeze, aAlpha);
+    if (T < g.freeze) {
+      ctx.font = '40px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('🤗', (f.cx + AKX + 15) / 2, GROUND - 90); ctx.textAlign = 'left';
+    }
+    drawFloats(g);
+    hud(`EATEN ${g.ate}`, `DODGED ${g.dodged}`, 1 - Math.min(1, g.t / g.dur));
   }
 
-  const UPDATE = { runner:runnerUpdate, whack:whackUpdate, mash:mashUpdate };
-  const DRAW = { runner:runnerDraw, whack:whackDraw, mash:mashDraw };
+  const UPDATE = { runner:runnerUpdate, whack:whackUpdate, escape:escapeUpdate };
+  const DRAW = { runner:runnerDraw, whack:whackDraw, escape:escapeDraw };
 
   // ---------- drawing helpers ----------
   const AK_BODY = ['hHTTTTTTHh','HTTTTTTTTH','STTTTTTTTS','STTTTTTTTS','S.TTTTTT.S','..TTTTTT..'];
@@ -580,10 +658,11 @@ button:focus-visible { outline: 3px dashed var(--mint); outline-offset: 4px; }
     ctx.textAlign = 'center'; ctx.fillStyle = C.butter; ctx.fillText(GAMES[G.type].title, W / 2, 16);
     ctx.textAlign = 'left';
   }
-  function door() {
-    rect(690, GROUND - 140, 100, 140, C.ink); rect(712, GROUND - 100, 56, 100, C.green);
+  function door(x = 690, closed = false) {
+    rect(x, GROUND - 140, 100, 140, C.ink); rect(x + 22, GROUND - 100, 56, 100, closed ? '#6b4a3a' : C.green);
+    if (closed) rect(x + 64, GROUND - 52, 6, 6, C.butter);
     ctx.font = '18px Silkscreen, monospace'; ctx.fillStyle = C.green; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('EXIT', 740, GROUND - 120); ctx.textAlign = 'left';
+    ctx.fillText('EXIT', x + 50, GROUND - 120); ctx.textAlign = 'left';
   }
   function desk(x) {
     rect(x - 60, GROUND - 46, 120, 8, '#8a78a8'); rect(x - 54, GROUND - 38, 108, 38, '#2a1f3d');
@@ -718,7 +797,7 @@ button:focus-visible { outline: 3px dashed var(--mint); outline-offset: 4px; }
     }
     else if (phase === 'game') {
       if (G.type === 'runner') runnerJump();
-      else if (G.type === 'mash') mashTap();
+      else if (G.type === 'escape') escapeJump();
       else if (G.type === 'whack' && e && e.target === cv) {
         const r = cv.getBoundingClientRect();
         whackTap((e.clientX - r.left) / r.width * W, (e.clientY - r.top) / r.height * H);
